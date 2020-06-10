@@ -93,7 +93,7 @@ if __name__ == "__main__":
 
     for gradeTable in Config.gradeTables:
         logging.debug("==================================================")
-        logging.debug(f"Updating studies: {gradeTable["gradeTableNum"]} with filename {gradeTable["filename"]}")
+        #logging.debug("Updating studies: "+gradeTable["gradeTableNum"]+" with filename "+gradeTable["filename"])
         logging.debug("==================================================")
         grade_links = navigateToGradeTable(session, notenlink)
         rows = navigateToCorrectGradeTableAndIterateTableCells(
@@ -106,7 +106,7 @@ if __name__ == "__main__":
 
         if data != rows:
             logging.debug("not equal")
-            sendMail(f"Update to your grades [{gradeTable["userFriendlyName"]}]", rows)
+            sendMail("Update to your grades [" + gradeTable["userFriendlyName"] + "]", rows)
         else:
             logging.debug("equal")
         with open(gradeTable["filename"], "w") as text_file:
