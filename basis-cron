@@ -1,0 +1,1 @@
+0 * * * * /.venv/bin/python /home/appuser/main.py >> /var/log/cron.log 2>&1
