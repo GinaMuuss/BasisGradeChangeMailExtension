@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+
 import requests
 import json
 import re
@@ -9,9 +10,13 @@ import sys
 import os.path
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 from config import Config
 from bs4 import BeautifulSoup
 
+
+DOWNLOAD_PDF_BUTTON_CLASS = "liste1"
+PDF_FILENAME = "grades.pdf"
 
 def login(session):
     params = (
@@ -60,7 +65,7 @@ def wrapWithTD(string):
     return '<td style="padding-right: 1em;">' + string + "</td>"
 
 
-def sendMail(subject, rows):
+def sendMail(subject, rows, pdfContent):
     context = ssl.create_default_context()
     message = MIMEMultipart()
     message["Subject"] = subject
@@ -78,11 +83,26 @@ def sendMail(subject, rows):
     htmlPart = MIMEText(html, 'html')
     message.attach(htmlPart)
 
+    pdfAttachment = MIMEApplication(pdfContent, Name=PDF_FILENAME)
+    pdfAttachment['Content-Disposition'] = f'attachment; filename="{PDF_FILENAME}"'
+    message.attach(pdfAttachment)
+
     with smtplib.SMTP_SSL(Config.smtpServer, Config.smtpServerPort, context=context) as server:
         server.login(Config.mail["from"], Config.mail["fromPwd"])
         server.set_debuglevel(1)
         server.sendmail(Config.mail["from"],
                         Config.mail["to"], message.as_string())
+
+
+
+def downloadPdf(session, url):
+    response = session.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    createPdfButton = soup.find("a", {"class": DOWNLOAD_PDF_BUTTON_CLASS})
+    pdfLink = createPdfButton["href"]
+
+    downloadPdfResponse = session.get(pdfLink)
+    return downloadPdfResponse.content
 
 
 if __name__ == "__main__":
@@ -96,8 +116,9 @@ if __name__ == "__main__":
         #logging.debug("Updating studies: "+gradeTable["gradeTableNum"]+" with filename "+gradeTable["filename"])
         logging.debug("==================================================")
         grade_links = navigateToGradeTable(session, notenlink)
-        rows = navigateToCorrectGradeTableAndIterateTableCells(
-            session, grade_links[gradeTable["gradeTableNum"]], "")
+        currentGradeTableLink = grade_links[gradeTable["gradeTableNum"]]
+
+        rows = navigateToCorrectGradeTableAndIterateTableCells(session, currentGradeTableLink, "")
         if os.path.isfile(gradeTable["filename"]):
             with open(gradeTable["filename"]) as f:
                 data = json.load(f)
@@ -106,7 +127,8 @@ if __name__ == "__main__":
 
         if data != rows:
             logging.debug("not equal")
-            sendMail("Update to your grades [" + gradeTable["userFriendlyName"] + "]", rows)
+            pdfContent = downloadPdf(session, currentGradeTableLink)
+            sendMail("Update to your grades [" + gradeTable["userFriendlyName"] + "]", rows, pdfContent)
         else:
             logging.debug("equal")
         with open(gradeTable["filename"], "w") as text_file:
